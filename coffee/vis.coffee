@@ -7,20 +7,35 @@ class BubbleChart
 
     @tooltip = CustomTooltip("gates_tooltip", 240)
 
+    h_over_n = (@height - 200) / 24
+    list = [1..24]
+    @year_center_y = (item * h_over_n + 100 for item in list)
+
+
     # locations the nodes will move towards
     # depending on which view is currently being
     # used
     @center = {x: @width / 2, y: @height / 2}
+
     @year_centers = {
-      "2012": {x: @width / 3, y: @height / 2},
+
+      "2004": {x: @width+200, y: 0},
+      "2005": {x: @width+200, y: 0},
+      "2006": {x: @width+200, y: 0},
+      "2007": {x: @width+200, y: 0},
+      "2008": {x: -200, y: @height / 2}
+      "2009": {x: -200, y: @height + 200},
+      "2010": {x: -200, y: @height + 200},
+      "2011": {x: -200, y: @height + 200}
+      "2012": {x: 180, y: @height / 2},
       "2013": {x: @width / 2, y: @height / 2},
-      "2014": {x: 2 * @width / 3, y: @height / 2}
+      "2014": {x: @width - 180, y: @height / 2}
     }
 
     # used when setting up force and
     # moving around nodes
     @layout_gravity = -0.01
-    @damper = 0.1
+    @damper = 0.1 
 
     # these will be set in create_nodes and create_vis
     @vis = null
@@ -30,12 +45,12 @@ class BubbleChart
 
     # nice looking colors - no reason to buck the trend
     @fill_color = d3.scale.ordinal()
-    .domain(["low", "medium", "high"])
-    .range(["#d84b2a", "#beccae", "#7aa25c"])
+    .domain([0..24])
+    .range(["#d84b2a","#ee9586","#e4b7b2", "#aaaaaa", "#beccae", "#9caf84", "#7aa25c"])
 
     # use the max total_amount in the data as the max in the scale's domain
-    max_amount = d3.max(@data, (d) -> parseInt(d["總計Grand Total_"]))
-    @radius_scale = d3.scale.pow().exponent(0.5).domain([0, max_amount]).range([2, 85])
+    max_amount = d3.max(@data, (d) -> parseInt(d["總計_Grand Total"]))
+    @radius_scale = d3.scale.pow().exponent(0.4).domain([0, max_amount]).range([2, 40])
 
     this.create_nodes()
     this.create_vis()
@@ -49,7 +64,7 @@ class BubbleChart
     @data.forEach (d) =>
       for k,v of d
         continue if k == "年度別Fiscal Year"
-        continue if k == "總計Grand Total_"
+        continue if k == "總計_Grand Total"
         node = {
           id: i
           radius: @radius_scale(parseInt(v))
@@ -68,7 +83,9 @@ class BubbleChart
     @nodes.sort (a,b) -> b.value - a.value
 
 
-  # create svg at #vis and then 
+
+
+  # create svg at #vis and then
   # create circle representation for each node
   create_vis: () =>
     @vis = d3.select("#vis").append("svg")
@@ -79,7 +96,7 @@ class BubbleChart
     @circles = @vis.selectAll("circle")
     .data(@nodes, (d) -> d.id)
 
-    # used because we need 'this' in the 
+    # used because we need 'this' in the
     # mouse callbacks
     that = this
 
@@ -87,9 +104,9 @@ class BubbleChart
     # see transition below
     @circles.enter().append("circle")
     .attr("r", 0)
-    .attr("fill", (d) => @fill_color(d.group))
+    .attr("fill", (d) => @fill_color(parseInt(d.id) % 24))
     .attr("stroke-width", 2)
-    .attr("stroke", (d) => d3.rgb(@fill_color(d.group)).darker())
+    .attr("stroke", (d) => d3.rgb(@fill_color(parseInt(d.id) % 24)).darker())
     .attr("id", (d) -> "bubble_#{d.id}")
     .on("mouseover", (d,i) -> that.show_details(d,i,this))
     .on("mouseout", (d,i) -> that.hide_details(d,i,this))
@@ -103,9 +120,9 @@ class BubbleChart
   # Charge is proportional to the diameter of the
   # circle (which is stored in the radius attribute
   # of the circle's associated data.
-  # This is done to allow for accurate collision 
+  # This is done to allow for accurate collision
   # detection with nodes of different sizes.
-  # Charge is negative because we want nodes to 
+  # Charge is negative because we want nodes to
   # repel.
   # Dividing by 8 scales down the charge to be
   # appropriate for the visualization dimensions.
@@ -154,16 +171,22 @@ class BubbleChart
 
     this.display_years()
 
-  # move all circles to their associated @year_centers 
+  # move all circles to their associated @year_centers
   move_towards_year: (alpha) =>
     (d) =>
-      target = @year_centers[d.year]
+      which_year = (d.year.split "Y")[1]
+      target = @year_centers[which_year]
+      type = parseInt(d.id) % 24;
       d.x = d.x + (target.x - d.x) * (@damper + 0.02) * alpha * 1.1
-      d.y = d.y + (target.y - d.y) * (@damper + 0.02) * alpha * 1.1
+      if (which_year == "2012" || which_year == "2013" || which_year == "2014")
+        y = @year_center_y[type]
+      else
+        y = Math.random() * @height
+      d.y = d.y + (y - d.y) * (@damper + 0.02) * alpha * 1.1
 
   # Method to display year titles
   display_years: () =>
-    years_x = {"2008": 160, "2009": @width / 2, "2010": @width - 160}
+    years_x = {"2012": 160, "2013": @width / 2, "2014": @width - 160}
     years_data = d3.keys(years_x)
     years = @vis.selectAll(".years")
     .data(years_data)
@@ -177,6 +200,7 @@ class BubbleChart
 
   # Method to hide year titiles
   hide_years: () =>
+    @circles.transition().duration(2000).attr("r", (d) -> d.radius)
     years = @vis.selectAll(".years").remove()
 
   show_details: (data, i, element) =>
@@ -212,4 +236,4 @@ $ ->
       root.display_all()
 
   # d3.csv "data/gates_money.csv", render_vis
-  d3.csv "data/test.csv", render_vis
+  d3.csv "data/test2.csv", render_vis
